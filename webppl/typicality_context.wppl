@@ -1,14 +1,15 @@
 var EPSILON = .001
 
 
-var red_toma = function(p) {
+var red_target = function(p) {
   Bernoulli({p: p}).score(true)
-
 }
+
 // set of utterances
-var utterances = ["toma", "red toma", "blue toma"]
+var utterances = ["toma", "red toma", "blue toma", "dax", "blue dax"]
 var objects = [{color: "red", shape: "toma", string: "red toma"},
-               {color: "blue", shape: "toma", string: "blue toma"}]
+               {color: "blue", shape: "toma", string: "blue toma"},
+               {color: "blue", shape: "dax", string: "blue dax"}]
 
 // meaning function to interpret the utterances
 var meaning = function(utterance, obj){
@@ -49,21 +50,23 @@ var typicality = function(obj, utterance, p) {
    }
 
    else if(_.includes(obj, "red") && _.includes(utterance, "blue") ||
-           _.includes(obj, "blue") && _.includes(utterance, "red")) {
+           _.includes(obj, "blue") && _.includes(utterance, "red") ||
+           _.includes(obj, "dax") && _.includes(utterance, "toma") ||
+           _.includes(obj, "toma") && _.includes(utterance, "dax")
+         ) {
 
       return Math.log(EPSILON)
    }
 
    else if(_.includes(obj, "red")) {
-    return red_toma(p)
+    return red_target(p)
   }
 
-  else {
-    return red_toma(1 - p)
+   else {
+    return red_target(1 - p)
   }
 
 }
-
 
 // define actor optimality
 var alpha = 10
