@@ -1,0 +1,311 @@
+---
+title: "Contrast RSA WebPPL Model"
+author: "Dan Yurovsky and Claire Bergey"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    highlight: tango
+    theme: flatly
+    toc: true
+    toc_float:
+      collapsed: true
+    code_folding: hide
+---
+
+
+### Setup
+```{r, include=FALSE}
+knitr::opts_chunk$set(fig.align='center', echo=FALSE, messages=FALSE, warning = FALSE,
+                      fig.height = 3, fig.width=5)
+
+#Load packages + setup
+library(rwebppl)
+library(here)
+library(directlabels)
+library(ggthemes)
+library(lme4)
+library(here)
+library(ggridges)
+library(tidyboot)
+library(tidyverse)
+
+theme_set(theme_few(base_size = 14))
+```
+
+# Basic contrastive inference
+
+In this simulation, we suppose that we have two worlds: 
+
+1. Two Dax World in which there is a red dax, a blue dax, and a blue toma
+2. Two Toma world in which there is a red toma, a blue toma, a blue dax
+
+The listener doesn't know which world they are in, but they hear a speaker say either "dax" or "blue dax" and have to pick the correct target, and also make a inference about which world they are in (and hence the meaning of "dax").
+
+```{r two-world_inference, eval = FALSE}
+two_world_utterances <- tibble(utterance = c("dax", "blue dax", "red dax"),
+                               utterance_num = as.character(1:3))
+
+two_world_inference <- map_dfr(two_world_utterances %>% pull(utterance), 
+                               ~webppl(program_file = 
+                                         here("webppl/discrete_semantics.wppl"), 
+                                       data = .x),
+                               .id = "utterance_num") %>%
+  left_join(two_world_utterances, by = "utterance_num") %>%
+  select(-utterance_num)
+```
+
+```{r two-world-analysis}
+two_world_obj_data <- two_world_inference %>%
+  mutate(chosen = case_when(world_string == "two toma" ~ 
+                           gsub("dax", "single", obj),
+                         world_string == "two dax" ~ 
+                           gsub("dax", "pair", obj)))
+
+ggplot(two_world_obj_data, aes(x = chosen, y = prob, fill = chosen)) + 
+  geom_col(position = "dodge", ) + 
+  facet_wrap(~ utterance) + 
+  scale_fill_ptol(drop = FALSE) +
+  theme(legend.position = "none", 
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(x = "", y = "selection probability")
+
+ggsave("two_world_pair.png", width = 6, height = 3.5, units = "in", dpi = 600)
+```
+
+```{r markedness, eval = FALSE}
+markedness_utterances <- tibble(utterance = c("toma", "red toma"),
+                                utterance_num = as.character(1:2))
+
+markedness_inference <- map_dfr(markedness_utterances %>% pull(utterance), 
+                               ~webppl(program_file = 
+                                         here("webppl/markedness.wppl"), 
+                                       data = .x),
+                               .id = "utterance_num") %>%
+  left_join(markedness_utterances, by = "utterance_num") %>%
+  select(-utterance_num) %>%
+  as_tibble()
+```
+
+```{r markedness-analysis}
+markedness_data <- markedness_inference %>%
+  mutate(utterance = gsub("red", "blue", utterance))
+
+ggplot(markedness_data, aes(x = value, y = utterance)) + 
+  stat_density_ridges(scale = 1, 
+                      quantile_lines = TRUE, quantiles = 2) + 
+  scale_fill_ptol() +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(y = "utterance", x = "proportion of tomas that are blue")
+
+ggsave("markedness.png", width =6, height = 4, units = "in", dpi = 600)
+```
+
+```{r combo, eval = FALSE}
+contrast_utterances <- tibble(utterance = c("toma", "blue toma"),
+                                utterance_num = as.character(1:2))
+
+contrast_inference <- map_dfr(contrast_utterances %>% pull(utterance), 
+                               ~webppl(program_file = 
+                                         here("webppl/contrast_inference_typicality.wppl"), 
+                                       data = .x),
+                               .id = "utterance_num") %>%
+  left_join(contrast_utterances, by = "utterance_num") %>%
+  select(-utterance_num) %>%
+  as_tibble()
+
+contrast_data <- contrast_inference %>%
+  pivot_wider(names_from = "Parameter") %>%
+  mutate(p = as.numeric(p))
+
+```
+
+```{r redundant, eval = FALSE}
+redundant_utterances <- tibble(utterance = c("toma", "blue toma"),
+                                utterance_num = as.character(1:2))
+
+redundant_inference <- map_dfr(redundant_utterances %>% pull(utterance), 
+                               ~webppl(program_file = 
+                                         here("webppl/redundant_inference_typicality.wppl"), 
+                                       data = .x),
+                               .id = "utterance_num") %>%
+  left_join(redundant_utterances, by = "utterance_num") %>%
+  select(-utterance_num) %>%
+  as_tibble()
+
+redundant_data <- redundant_inference %>%
+  pivot_wider(names_from = "Parameter") %>%
+  mutate(p = as.numeric(p)) 
+```
+
+```{r redundant, eval = FALSE}
+unhelpful_utterances <- tibble(utterance = c("toma", "blue toma"),
+                                utterance_num = as.character(1:2))
+
+unhelpful_inference <- map_dfr(unhelpful_utterances %>% pull(utterance), 
+                               ~webppl(program_file = 
+                                         here("webppl/unhelpful_inference_typicality.wppl"), 
+                                       data = .x),
+                               .id = "utterance_num") %>%
+  left_join(redundant_utterances, by = "utterance_num") %>%
+  select(-utterance_num) %>%
+  as_tibble()
+
+unhelpful_data <- unhelpful_inference %>%
+  pivot_wider(names_from = "Parameter") %>%
+  mutate(p = as.numeric(p)) 
+```
+
+```{r e2-plot}
+e2_data <- contrast_data %>%
+  select(-Iteration, -Chain, -world) %>%
+  mutate(type = "contast") %>%
+  bind_rows(redundant_data %>% 
+              select(-Iteration, -Chain, -world) %>%
+              mutate(type = "redundant")) %>%
+  bind_rows(unhelpful_data %>% 
+              select(-Iteration, -Chain, -world) %>%
+              mutate(type = "unhelpful"))
+
+e2_data %>%
+  group_by(type, utterance) %>%
+  summarise(p = mean(p)) %>%
+  ggplot(aes(x = type, y = p, fill = utterance)) +
+  geom_col(position = "dodge") + 
+  scale_fill_ptol() + 
+  labs(x = "", y = "prop. tomas that are blue") + 
+  theme(legend.position = "top")
+
+ggsave("e2_rsa_nofilter.png", width = 4.5, height = 5, units = "in", dpi = 600)
+
+
+e2_data %>%
+  filter(obj == "blue toma") %>%
+  group_by(type, utterance) %>%
+  summarise(p = mean(p)) %>%
+  ggplot(aes(x = type, y = p, fill = utterance)) +
+  geom_col(position = "dodge") + 
+  scale_fill_ptol() + 
+  labs(x = "", y = "prop. tomas that are blue") + 
+  theme(legend.position = "top")
+
+ggsave("e2_rsa.png", width = 4.5, height = 5, units = "in", dpi = 600)
+
+```
+
+
+```{r joint-inference, eval = FALSE}
+joint_utterances <- tibble(utterance = c("toma", "blue toma", "red toma"),
+                                utterance_num = as.character(1:3))
+
+joint_inference <- map_dfr(joint_utterances %>% pull(utterance), 
+                               ~webppl(program_file = 
+                                         here("webppl/two_world_typicality.wppl"), 
+                                       data = .x),
+                               .id = "utterance_num") %>%
+  left_join(joint_utterances, by = "utterance_num") %>%
+  select(-utterance_num) %>%
+  as_tibble()
+```
+
+```{r joint-analysis}
+joint_data <- joint_inference %>%
+  pivot_wider(names_from = "Parameter") %>%
+  mutate(chosen = case_when(world == "two toma" ~ 
+                           gsub("toma", "pair", obj),
+                         world == "two dax" ~ 
+                           gsub("toma", "single", obj))) %>%
+  mutate(p = as.numeric(p),
+         utterance = factor(utterance, 
+                            levels = c("blue toma", "toma", "red toma")))
+
+joint_data_obj <- joint_data %>%
+  group_by(utterance, chosen) %>%
+  count() %>%
+  group_by(utterance) %>%
+  mutate(prob = n/sum(n))
+
+ggplot(joint_data_obj, aes(x = chosen, y = prob, fill = chosen)) + 
+  geom_col(position = "dodge") + 
+  facet_wrap(~ utterance) + 
+  scale_fill_ptol(drop = FALSE) +
+  theme(legend.position = "none", 
+        axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(x = "", y = "selection probability")
+
+ggplot(joint_data, aes(x = p, y = chosen)) +
+  facet_wrap(~ utterance) +
+  stat_density_ridges(scale = 1, 
+                      quantile_lines = TRUE, quantiles = 2) + 
+  scale_fill_ptol() +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(y = "object chosen", x = "proportion of tomas that are blue")
+
+joint_data_p <- joint_data %>%
+  ungroup() %>%
+  filter(utterance %in% c("toma", "blue toma"), chosen == "blue pair") %>%
+  select(-world, -Iteration, -Chain) %>%
+  mutate(type = "contrast")
+
+
+joint_data_subset <- joint_data %>%
+  filter(!utterance %in% c("red dax"), !chosen == "red pair") %>%
+  group_by(utterance, chosen) %>%
+  summarise(p = mean(p)) %>%
+  spread(utterance, p)
+
+```
+
+```{r reduntant-typicality, eval = FALSE}
+redundant_typicality <- tibble(utterance = c("toma", "blue toma"),
+                               utterance_num = as.character(1:2))
+
+redundant_inference <- map_dfr(redundant_typicality %>% pull(utterance), 
+                               ~webppl(program_file = 
+                                         here("webppl/redundant_typicality.wppl"), 
+                                       data = .x),
+                               .id = "utterance_num") %>%
+  left_join(redundant_utterances, by = "utterance_num") %>%
+  select(-utterance_num) %>%
+  as_tibble()
+```
+
+```{r redundant-analysis}
+redundant_data <- redundant_inference %>%
+  pivot_wider(names_from = "Parameter") %>%
+  mutate(p = as.numeric(p)) 
+
+ggplot(redundant_data, aes(x = p, y = world)) +
+  facet_wrap(~ utterance) +
+  stat_density_ridges(scale = 1, 
+                      quantile_lines = TRUE, quantiles = 2) + 
+  scale_fill_ptol() +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(y = "object chosen", x = "proportion of tomas that are blue")
+
+redundant_data_p <- redundant_data %>%
+  filter(world %in% c("correct", "correct2")) %>%
+  select(-world, -Iteration, -Chain) %>%
+  mutate(type = "redundant")
+```
+
+```{r together}
+comparison_data <- bind_rows(joint_data_p, redundant_data_p)
+
+ggplot(comparison_data, aes(x = p, y = utterance)) +
+  facet_wrap(~ type) +
+  stat_density_ridges(scale = 1, 
+                      quantile_lines = TRUE, quantiles = 2) + 
+  scale_fill_ptol() +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(y = "object chosen", x = "proportion of tomas that are blue")
+
+ggsave("comparison_density.png", width = 8, height = 4, units = "in", dpi = 600)
+
+comparison_data_avg <- comparison_data %>%
+  group_by(type, utterance) %>%
+  summarise(p = mean(p))
+
+ggplot(comparison_data_avg, aes(x = utterance, y = p, color = type)) + 
+  geom_point(position = "dodge")
+
+```

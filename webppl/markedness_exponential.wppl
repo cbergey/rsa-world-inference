@@ -1,3 +1,6 @@
+var EPSILON = .001
+
+
 var red_toma = function(p) {
   Bernoulli({p: p}).score(true)
 
@@ -41,18 +44,18 @@ var cost = function(utterance) {
 //typicality
 var typicality = function(obj, utterance, p) {
    if(obj == utterance) {
-    return Math.log(1)
+    return Math.exp(1)/(10 + Math.exp(1))
    }
 
    if(_.includes(obj, utterance)) {
-      return red_toma(p)
+      return Math.exp(p)/(10 + Math.exp(p))
    }
 
 }
 
 
 // define actor optimality
-var alpha = 2
+var alpha = 10
 
 // pragmatic speaker
 var speaker = function(obj, p){
@@ -69,10 +72,10 @@ var speaker = function(obj, p){
 var pragmaticListener = function(utterance){
   Infer({method: 'rejection', samples: 1000, model: function(){
     var obj = objectPrior()
-    var p = sample(Beta({a: 2, b: 1}))
+    var p = sample(Beta({a: 4, b: 3}))
     observe(speaker(obj, p), utterance)
     return p
   }})
 }
 
-pragmaticListener(_.first(data))
+viz(pragmaticListener("red toma"))

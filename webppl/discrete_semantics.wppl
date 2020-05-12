@@ -53,9 +53,6 @@ var cost = function(utterance) {
  //return 0
 }
 
-// define actor optimality
-var alpha = 1
-
 // pragmatic speaker
 var speaker = function(world, obj){
   Infer({model: function(){
@@ -71,8 +68,12 @@ var pragmaticListener = function(utterance){
     var world = worldsPrior()
     var obj = objectPrior(world.objects)
     observe(speaker(world, obj),utterance)
-    return world.string
+    var world_string = world.string
+    return{obj, world_string}
   }})
 }
 
-viz(pragmaticListener("red dax"))
+
+// define actor optimality
+var alpha = 2
+pragmaticListener(_.first(data))

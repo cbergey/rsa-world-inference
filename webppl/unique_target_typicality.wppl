@@ -1,12 +1,12 @@
 var EPSILON = .001
 
 var objects1 = [{color: "blue", shape: "toma", string: "blue toma"},
-               {color: "blue", shape: "dax", string: "blue dax"},
-               {color: "red", shape: "toma", string: "red toma"}]
+               {color: "red", shape: "dax", string: "red dax"},
+               {color: "red", shape: "dax", string: "red dax"}]
 
 var objects2 = [{color: "blue", shape: "dax", string: "blue dax"},
-               {color: "blue", shape: "toma", string: "blue toma"},
-               {color: "red", shape: "dax", string: "red dax"}]
+               {color: "red", shape: "toma", string: "red toma"},
+               {color: "red", shape: "toma", string: "red toma"}]
 
 var blue_target = function(p) {
   Bernoulli({p: p}).score(true)
@@ -14,11 +14,11 @@ var blue_target = function(p) {
 
 
 // set of utterances
-var utterances1 = ["toma", "dax", "blue toma", "blue dax", "red toma"]
-var utterances2 = ["toma", "dax", "blue toma", "blue dax", "red dax"]
+var utterances1 = ["toma", "dax", "blue toma", "red dax"]
+var utterances2 = ["toma", "dax", "blue dax", "red toma"]
 
-var worlds = [{objects: objects1, utterances: utterances1, string: "two toma"},
-              {objects: objects2, utterances: utterances2, string: "two dax"}]
+var worlds = [{objects: objects1, utterances: utterances1, string: "two dax"},
+              {objects: objects2, utterances: utterances2, string: "two toma"}]
 
 
 // prior over world states
@@ -103,9 +103,10 @@ var pragmaticListener = function(utterance){
     var world = worldsPrior()
     var obj = objectPrior(world.objects)
 
-    var a = 2
+    var a = ((world.string == "two dax") && _.includes(obj, "dax") ||
+             (world.string == "two toma") && _.includes(obj, "toma")) ? 2 : 2
     var b = ((world.string == "two dax") && _.includes(obj, "dax") ||
-             (world.string == "two toma") && _.includes(obj, "toma")) ? 2 : 1
+             (world.string == "two toma") && _.includes(obj, "toma")) ? 3 : 2
 
     var p = sample(Beta({a: a, b: b}))
     observe(speaker(world, obj, p), utterance)
